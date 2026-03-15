@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 1. THE CRT GLASS EFFECT */
+.crt-overlay {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  /* This creates the horizontal scanlines */
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 20;
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
+  animation: flicker 0.15s infinite;
+}
+
+/* 2. THE TUBE VIGNETTE (Darkened Corners) */
+.vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* Creates the curved screen look */
+  background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.8) 100%);
+  box-shadow: inset 0 0 10rem rgba(0,0,0,1);
+  z-index: 30;
+  pointer-events: none;
+}
+
+/* 3. THE STATIC EFFECT (For channel changes) */
+#static-overlay {
+  background: url('https://media.giphy.com/media/oEI9uWUicH9N6/giphy.gif');
+  background-size: cover;
+  z-index: 15;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* 4. ANIMATIONS */
+@keyframes flicker {
+  0% { opacity: 0.98; }
+  50% { opacity: 1; }
+  100% { opacity: 0.99; }
+}
+
+/* Retro OSD Text Glow */
+#osd {
+  text-shadow: 0 0 5px rgba(74, 222, 128, 0.8), 2px 2px 2px rgba(0,0,0,1);
+  letter-spacing: 2px;
+}
+
+/* Hide scrollbars but keep functionality */
+body::-webkit-scrollbar {
+  display: none;
+}
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
