@@ -4,6 +4,7 @@ let channels = [];
 let currentChannelIndex = 0;
 const VIDEO_DURATION_DEFAULT = 600; 
 
+// 1. INITIALIZATION
 async function initApp() {
     try {
         const response = await fetch('./channels.json');
@@ -27,6 +28,7 @@ window.onYouTubeIframeAPIReady = () => {
     tuneToChannel(0);
 };
 
+// 2. DATA FETCHING (No Shorts / 4m+ Videos)
 async function getChannelVideos(youtubeId) {
     const storageKey = `cache_${youtubeId}`;
     const cachedData = localStorage.getItem(storageKey);
@@ -38,19 +40,15 @@ async function getChannelVideos(youtubeId) {
     }
 
     try {
-        // videoDuration=medium filters for 4-20 minute videos (Removes Shorts)
         const response = await fetch(
             `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${youtubeId}&part=snippet,id&order=date&maxResults=15&type=video&videoDuration=medium`
         );
         const data = await response.json();
         
-        if (!data.items) throw new Error("API returned no items");
-
         const videos = data.items
             .filter(item => {
                 const title = item.snippet.title.toLowerCase();
-                // Double protection: Block anything with "shorts" in the title
-                return !title.includes('shorts') && !title.includes('#short');
+                return !title.includes('shorts') && !title.includes('#short') && item.id.videoId;
             })
             .map(item => ({
                 id: item.id.videoId,
@@ -68,6 +66,7 @@ async function getChannelVideos(youtubeId) {
     }
 }
 
+// 3. THE TUNER
 async function tuneToChannel(index) {
     const staticOverlay = document.getElementById('static-overlay');
     if (staticOverlay) staticOverlay.style.opacity = "1"; 
@@ -96,15 +95,9 @@ async function tuneToChannel(index) {
         player = new YT.Player('player', {
             videoId: targetVideo.id,
             playerVars: {
-                'autoplay': 1,
-                'controls': 0,
-                'start': startSeconds,
-                'mute': 1,
-                'playsinline': 1,
-                'modestbranding': 1,
-                'rel': 0,
-                'disablekb': 1,
-                'iv_load_policy': 3
+                'autoplay': 1, 'controls': 0, 'start': startSeconds,
+                'mute': 1, 'playsinline': 1, 'modestbranding': 1,
+                'rel': 0, 'disablekb': 1, 'iv_load_policy': 3
             },
             events: {
                 'onReady': (event) => {
@@ -112,9 +105,7 @@ async function tuneToChannel(index) {
                     setTimeout(() => { event.target.unMute(); }, 1200);
                 },
                 'onStateChange': (event) => {
-                    if (event.data === YT.PlayerState.ENDED) {
-                        tuneToChannel(currentChannelIndex);
-                    }
+                    if (event.data === YT.PlayerState.ENDED) tuneToChannel(currentChannelIndex);
                 },
                 'onError': () => tuneToChannel(currentChannelIndex)
             }
@@ -128,45 +119,80 @@ async function tuneToChannel(index) {
     }
 }
 
+// 4. UI ELEMENTS
 function showOSD(name, num) {
     const osd = document.getElementById('osd');
     if (!osd) return;
     const displayNum = num < 10 ? `0${num}` : num;
-    osd.innerHTML = `CH ${displayNum}<br><span class="text-xl font-bold">${name.toUpperCase()}</span>`;
+    osd.innerHTML = `CH ${displayNum}<br><span class="text-xl font-bold font-mono text-green-400">${name.toUpperCase()}</span>`;
     osd.classList.remove('hidden');
     if (window.osdTimeout) clearTimeout(window.osdTimeout);
     window.osdTimeout = setTimeout(() => osd.classList.add('hidden'), 3000);
 }
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp') tuneToChannel((currentChannelIndex + 1) % channels.length);
-    if (e.key === 'ArrowDown') tuneToChannel((currentChannelIndex - 1 + channels.length) % channels.length);
-});
-
+// 5. INPUTS & DOM LISTENERS
+// 5. INPUTS & DOM LISTENERS
 document.addEventListener('DOMContentLoaded', () => {
-    const powerBtn = document.getElementById('power-btn');
-    if (powerBtn) {
-        powerBtn.addEventListener('click', () => {
-            document.getElementById('power-on-screen').classList.add('hidden');
-            initApp(); 
-        });
-    } else {
-        initApp();
-    }
-});
+    const chanUpBtn = document.getElementById('chan-up');
+    const chanDownBtn = document.getElementById('chan-down');
+    const powerToggleBtn = document.getElementById('power-toggle');
+    const staticAudio = document.getElementById('static-audio');
 
-// In main.js, update the click listener:
-powerBtn.addEventListener('click', () => {
-    document.getElementById('power-on-screen').classList.add('hidden');
-    
-    // If player exists, force it to play and unmute now
-    if (player && player.playVideo) {
-        player.playVideo();
-        setTimeout(() => {
-            player.unMute();
-            player.setVolume(50);
-        }, 500);
-    } else {
-        initApp(); // Fallback if not ready
+    const playStaticSound = () => {
+        if (staticAudio) {
+            staticAudio.volume = 0.15;
+            staticAudio.currentTime = 0;
+            staticAudio.play().catch(() => {});
+            setTimeout(() => { staticAudio.pause(); }, 400);
+        }
+    };
+
+    if (powerToggleBtn) {
+        powerToggleBtn.addEventListener('click', () => {
+            const playerDiv = document.getElementById('player');
+            
+            // Toggle the "Off" animation class
+            const isOff = playerDiv.classList.contains('tv-off');
+            
+            if (isOff) {
+                // ACTION: TURN ON
+                playerDiv.classList.remove('tv-off');
+                
+                if (!player) {
+                    // This is the first time pushing the button
+                    console.log("Initial Power On: Starting App...");
+                    initApp(); 
+                } else {
+                    // TV was just "standby", wake it up
+                    player.playVideo();
+                    setTimeout(() => { player.unMute(); }, 500);
+                }
+            } else {
+                // ACTION: TURN OFF
+                playerDiv.classList.add('tv-off');
+                if (player) player.pauseVideo();
+            }
+        });
     }
+
+    // Navigation (Only works if TV is ON)
+    const navigate = (direction) => {
+        const playerDiv = document.getElementById('player');
+        if (playerDiv.classList.contains('tv-off')) return; // Don't change channels if off
+        
+        playStaticSound();
+        if (direction === 'up') {
+            tuneToChannel((currentChannelIndex + 1) % channels.length);
+        } else {
+            tuneToChannel((currentChannelIndex - 1 + channels.length) % channels.length);
+        }
+    };
+
+    if (chanUpBtn) chanUpBtn.addEventListener('click', () => navigate('up'));
+    if (chanDownBtn) chanDownBtn.addEventListener('click', () => navigate('down'));
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') navigate('up');
+        if (e.key === 'ArrowDown') navigate('down');
+    });
 });
