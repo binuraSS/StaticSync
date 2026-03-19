@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+.tv-on {
+  animation: crt-warmup 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  will-change: transform, opacity; /* Tells Safari to use the GPU */
+}
+
+@keyframes crt-warmup {
+  0% { transform: scaleY(0.005) scaleX(0); opacity: 0; filter: brightness(10); }
+  50% { transform: scaleY(0.005) scaleX(1); opacity: 1; filter: brightness(5); }
+  100% { transform: scaleY(1) scaleX(1); opacity: 1; filter: brightness(1); }
+}
+
 /* 1. THE CRT GLASS EFFECT */
 .crt-overlay {
   content: " ";
