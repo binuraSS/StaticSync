@@ -63,3 +63,39 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+#player iframe {
+    transform: scale(1.15); /* Zooms in slightly to hide edges */
+    pointer-events: none;    /* Prevents clicking on the video itself */
+}
+
+.tv-off {
+    animation: tv-shutdown 0.4s ease-in forwards;
+}
+
+@keyframes tv-shutdown {
+    0% { transform: scaleX(1) scaleY(1); filter: brightness(1); }
+    50% { transform: scaleX(1) scaleY(0.01); filter: brightness(5); }
+    100% { transform: scaleX(0) scaleY(0); filter: brightness(10); }
+}
+
+#player {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  overflow: hidden;
+}
+
+#player iframe {
+  width: 100vw !important;
+  height: 56.25vw !important; /* 16:9 Aspect Ratio */
+  min-height: 100vh !important;
+  min-width: 177.77vh !important; /* 16:9 Aspect Ratio */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1.1); /* Scale 1.1 hides YouTube edges */
+}

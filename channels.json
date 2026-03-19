@@ -1,14 +1,14 @@
 [
   {
-    "id": 1,
-    "name": "RETRO BREEZE",
-    "youtubeId": "UC7e67fS9pU0O_WpS3p0pY_A",
-    "playlist": [] 
+    "name": "Lofi Girl",
+    "youtubeId": "UCSJ4gkVC6NrvII8umztf0Ow"
   },
   {
-    "id": 2,
-    "name": "LOFI CATHODE",
-    "youtubeId": "UCSJ4gkVC6NrvII8umztf0Ow",
-    "playlist": []
+    "name": "Synthetix TV",
+    "youtubeId": "UC6nSvw_UmiuXjr8VAn_T_Ww"
+  },
+  {
+    "name": "Retro Gaming",
+    "youtubeId": "UK7p5p6b_V8"
   }
 ]

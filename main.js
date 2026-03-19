@@ -1,14 +1,9 @@
-/**
- * StaticSync: The Main Tuner Logic (Clean Version)
- */
-
 const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 let player = null;
 let channels = [];
 let currentChannelIndex = 0;
 const VIDEO_DURATION_DEFAULT = 600; 
 
-// 1. INITIALIZATION
 async function initApp() {
     try {
         const response = await fetch('./channels.json');
@@ -21,6 +16,7 @@ async function initApp() {
 }
 
 function loadYouTubeIframeAPI() {
+    if (window.YT) return; 
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -31,7 +27,6 @@ window.onYouTubeIframeAPIReady = () => {
     tuneToChannel(0);
 };
 
-// 2. DATA FETCHING
 async function getChannelVideos(youtubeId) {
     const storageKey = `cache_${youtubeId}`;
     const cachedData = localStorage.getItem(storageKey);
@@ -43,14 +38,24 @@ async function getChannelVideos(youtubeId) {
     }
 
     try {
+        // videoDuration=medium filters for 4-20 minute videos (Removes Shorts)
         const response = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${youtubeId}&part=snippet,id&order=date&maxResults=5&type=video`
+            `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${youtubeId}&part=snippet,id&order=date&maxResults=15&type=video&videoDuration=medium`
         );
         const data = await response.json();
-        const videos = data.items.map(item => ({
-            id: item.id.videoId,
-            title: item.snippet.title
-        }));
+        
+        if (!data.items) throw new Error("API returned no items");
+
+        const videos = data.items
+            .filter(item => {
+                const title = item.snippet.title.toLowerCase();
+                // Double protection: Block anything with "shorts" in the title
+                return !title.includes('shorts') && !title.includes('#short');
+            })
+            .map(item => ({
+                id: item.id.videoId,
+                title: item.snippet.title
+            }));
 
         localStorage.setItem(storageKey, JSON.stringify({
             timestamp: Date.now(),
@@ -59,15 +64,13 @@ async function getChannelVideos(youtubeId) {
         return videos;
     } catch (error) {
         console.error("API Error:", error);
-        return [];
+        return [{ id: 'v67R_pYf-3g', title: 'Test Signal' }];
     }
 }
 
-// 3. THE TUNER (ONE VERSION ONLY)
 async function tuneToChannel(index) {
-    // Show static and OSD immediately
     const staticOverlay = document.getElementById('static-overlay');
-    if(staticOverlay) staticOverlay.style.opacity = "1"; 
+    if (staticOverlay) staticOverlay.style.opacity = "1"; 
     
     currentChannelIndex = index;
     const channel = channels[index];
@@ -76,7 +79,6 @@ async function tuneToChannel(index) {
     const videos = await getChannelVideos(channel.youtubeId);
     if (!videos || videos.length === 0) return;
 
-    // Time-Sync Math
     const totalLoopTime = videos.length * VIDEO_DURATION_DEFAULT;
     const now = new Date();
     const secondsSinceMidnight = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
@@ -86,10 +88,9 @@ async function tuneToChannel(index) {
     const startSeconds = totalOffset % VIDEO_DURATION_DEFAULT;
     const targetVideo = videos[videoIndex];
 
-    // Hide static after 400ms delay
     setTimeout(() => {
-        if(staticOverlay) staticOverlay.style.opacity = "0";
-    }, 400); 
+        if (staticOverlay) staticOverlay.style.opacity = "0";
+    }, 500); 
 
     if (!player) {
         player = new YT.Player('player', {
@@ -98,15 +99,24 @@ async function tuneToChannel(index) {
                 'autoplay': 1,
                 'controls': 0,
                 'start': startSeconds,
+                'mute': 1,
+                'playsinline': 1,
                 'modestbranding': 1,
                 'rel': 0,
-                'disablekb': 1
+                'disablekb': 1,
+                'iv_load_policy': 3
             },
             events: {
-                'onReady': (event) => event.target.playVideo(),
+                'onReady': (event) => {
+                    event.target.playVideo();
+                    setTimeout(() => { event.target.unMute(); }, 1200);
+                },
                 'onStateChange': (event) => {
-                    if (event.data === YT.PlayerState.ENDED) tuneToChannel(currentChannelIndex);
-                }
+                    if (event.data === YT.PlayerState.ENDED) {
+                        tuneToChannel(currentChannelIndex);
+                    }
+                },
+                'onError': () => tuneToChannel(currentChannelIndex)
             }
         });
     } else {
@@ -114,32 +124,25 @@ async function tuneToChannel(index) {
             videoId: targetVideo.id,
             startSeconds: startSeconds
         });
+        setTimeout(() => { player.unMute(); }, 800);
     }
 }
 
-// 4. UI ELEMENTS
 function showOSD(name, num) {
     const osd = document.getElementById('osd');
     if (!osd) return;
     const displayNum = num < 10 ? `0${num}` : num;
-    osd.innerHTML = `CH ${displayNum}<br><span class="text-xl">${name.toUpperCase()}</span>`;
+    osd.innerHTML = `CH ${displayNum}<br><span class="text-xl font-bold">${name.toUpperCase()}</span>`;
     osd.classList.remove('hidden');
-    setTimeout(() => osd.classList.add('hidden'), 3000);
+    if (window.osdTimeout) clearTimeout(window.osdTimeout);
+    window.osdTimeout = setTimeout(() => osd.classList.add('hidden'), 3000);
 }
 
-// 5. INPUTS
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp') {
-        let next = (currentChannelIndex + 1) % channels.length;
-        tuneToChannel(next);
-    }
-    if (e.key === 'ArrowDown') {
-        let prev = (currentChannelIndex - 1 + channels.length) % channels.length;
-        tuneToChannel(prev);
-    }
+    if (e.key === 'ArrowUp') tuneToChannel((currentChannelIndex + 1) % channels.length);
+    if (e.key === 'ArrowDown') tuneToChannel((currentChannelIndex - 1 + channels.length) % channels.length);
 });
 
-// 6. POWER BUTTON FIX (FOR SAFARI)
 document.addEventListener('DOMContentLoaded', () => {
     const powerBtn = document.getElementById('power-btn');
     if (powerBtn) {
@@ -148,7 +151,22 @@ document.addEventListener('DOMContentLoaded', () => {
             initApp(); 
         });
     } else {
-        // If you don't use the power button screen, just init
         initApp();
+    }
+});
+
+// In main.js, update the click listener:
+powerBtn.addEventListener('click', () => {
+    document.getElementById('power-on-screen').classList.add('hidden');
+    
+    // If player exists, force it to play and unmute now
+    if (player && player.playVideo) {
+        player.playVideo();
+        setTimeout(() => {
+            player.unMute();
+            player.setVolume(50);
+        }, 500);
+    } else {
+        initApp(); // Fallback if not ready
     }
 });
